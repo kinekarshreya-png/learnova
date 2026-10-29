@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#172554">
+  <meta name="description" content="Private, local-first study material and AI notes.">
+  <title>Study Vault</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div><div class="brand">Study Vault</div><div class="subbrand">Your study space, on your device</div></div>
+  <button id="settingsBtn" class="iconbtn" aria-label="Settings">⚙</button>
+</header>
+<main class="wrap">
+  <section class="panel quick">
+    <div class="section-head"><div><h2>Quick Note Box</h2><p>Keep small tasks in sight.</p></div><span class="pill">HOME</span></div>
+    <form id="taskForm" class="inlineform"><input id="taskInput" maxlength="180" placeholder="e.g. 25th Science test" required><button class="primary" type="submit">Add</button></form>
+    <div id="taskList" class="tasklist"></div>
+  </section>
+
+  <section class="section-head subject-heading"><div><h2>My Subjects</h2><p>Create and organise your subjects.</p></div></section>
+  <form id="subjectForm" class="inlineform"><input id="subjectInput" maxlength="80" placeholder="e.g. Science" required><button class="primary" type="submit">+ Subject</button></form>
+  <div id="subjectList" class="subject-grid"></div>
+
+  <section class="panel privacy-note">
+    <strong>Private by design</strong>
+    <p>Your subjects, files, tasks and notes stay in this browser on this device. Only the text you choose to send for AI generation goes to Gemini through your configured API worker.</p>
+  </section>
+</main>
+
+<dialog id="subjectDialog" class="modal wide">
+  <div class="modal-head"><div><h2 id="subjectTitle">Subject</h2><p id="subjectMeta"></p></div><button class="iconbtn close" data-close="subjectDialog">✕</button></div>
+  <nav class="tabs"><button class="tab active" data-tab="materials">Materials</button><button class="tab" data-tab="notes">Notes</button><button class="tab" data-tab="practice">MCQ practice</button></nav>
+  <section id="materialsTab" class="tabbody">
+    <div class="action-row">
+      <label class="filebtn">＋ Add files<input id="fileInput" type="file" multiple accept=".pdf,.txt,.md,.docx,image/*"></label>
+      <button id="cameraBtn" class="secondary">📷 Camera</button>
+      <button id="linkBtn" class="secondary">↗ Add link</button>
+    </div>
+    <p class="hint">PDF, images, text/Markdown and DOCX. Scanned pages use on-device OCR. Word documents need readable text extraction; if extraction fails, save as PDF or text.</p>
+    <div id="materialList" class="material-list"></div>
+    <div class="create-box">
+      <h3>Create Notes with AI</h3>
+      <p>Choose selected files or all readable material in this subject.</p>
+      <label class="field-label">Source</label>
+      <select id="sourceMode"><option value="selected">Selected materials</option><option value="all">All readable material in subject</option></select>
+      <label class="field-label">Notes style</label>
+      <select id="noteStyle"><option value="Short revision">Short revision</option><option value="Detailed">Detailed</option><option value="Exam-ready">Exam-ready</option><option value="Definitions and formulas">Definitions and formulas</option></select>
+      <label class="checkline"><input type="checkbox" id="showSources"> Include source references when available</label>
+      <button id="createNotesBtn" class="primary full">Create Notes</button>
+      <div id="aiStatus" class="status" aria-live="polite"></div>
+    </div>
+  </section>
+  <section id="notesTab" class="tabbody hidden"><div id="notesList" class="notes-list"></div></section>
+  <section id="practiceTab" class="tabbody hidden">
+    <div class="create-box"><h3>Quick MCQ challenge</h3><p>Questions will be based only on saved readable material in this subject.</p><button id="createQuizBtn" class="primary">Generate 5 MCQs</button><div id="quizStatus" class="status"></div></div>
+    <div id="quizArea"></div>
+    <div class="mistakes-box"><h3>Mistakes Notebook</h3><div id="mistakesList"></div></div>
+  </section>
+</dialog>
+
+<dialog id="noteDialog" class="modal wide">
+  <div class="modal-head"><div><h2 id="noteDialogTitle">Note</h2><p>Original AI version is preserved; edits save as a separate copy.</p></div><button class="iconbtn close" data-close="noteDialog">✕</button></div>
+  <textarea id="noteEditor" class="note-editor" rows="16"></textarea>
+  <div class="action-row end"><button id="saveCopyBtn" class="primary">Save editable copy</button></div>
+</dialog>
+
+<dialog id="settingsDialog" class="modal">
+  <div class="modal-head"><div><h2>Settings & Backup</h2><p>Stored locally in this browser.</p></div><button class="iconbtn close" data-close="settingsDialog">✕</button></div>
+  <label class="field-label">AI Worker URL</label><input id="workerUrl" placeholder="https://your-worker.yourname.workers.dev">
+  <p class="hint">Paste your Cloudflare Worker URL here. The Gemini API key belongs in the Worker secret, never in this app.</p>
+  <button id="saveSettingsBtn" class="primary full">Save settings</button>
+  <hr>
+  <h3>Daily study notifications</h3>
+  <p class="hint">Requested times: 10:00 AM and 8:00 PM. Browser notifications can only be checked while the app is running; a static GitHub Pages app cannot guarantee alerts while closed.</p>
+  <button id="enableNotificationsBtn" class="secondary full">Enable notifications</button><div id="notificationStatus" class="status"></div>
+  <hr>
+  <h3>Backup</h3><div class="action-row"><button id="exportBtn" class="secondary">Export backup</button><label class="filebtn">Import backup<input id="importInput" type="file" accept=".json,application/json"></label></div>
+  <p class="hint warning">Important: browser storage can be cleared by the browser or if you clear site data. Export backups regularly. This app does not upload your library to cloud storage.</p>
+</dialog>
+
+<dialog id="cameraDialog" class="modal wide">
+  <div class="modal-head"><div><h2>Capture a page</h2><p>Captured image is saved inside Study Vault, not your Gallery.</p></div><button class="iconbtn close" data-close="cameraDialog">✕</button></div>
+  <video id="cameraVideo" autoplay playsinline></video><canvas id="cameraCanvas" class="hidden"></canvas>
+  <div class="action-row"><button id="captureBtn" class="primary">Capture page</button><button id="stopCameraBtn" class="secondary">Close camera</button></div><div id="cameraStatus" class="status"></div>
+</dialog>
+<div id="toast" class="toast" role="status"></div>
+<footer>Study Vault · local-first · AI requires internet</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
