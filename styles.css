@@ -197,3 +197,5 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:20px}
 .aisheet .ai-input{flex:none;padding-top:6px}
 .aisheet .chips,.aisheet .attach,.aisheet .ai-scope,.aisheet .modal-head,.aisheet #chatStatus{flex:none}
 @media(min-width:641px){.aisheet[open]{max-height:90vh}.aisheet .ai-log{min-height:30vh}}
+
+.ai-input textarea{min-height:48px;line-height:1.3}
