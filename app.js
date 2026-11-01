@@ -63,6 +63,13 @@ function streak() {
   while (set.has(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
   return n;
 }
+let workerOutdated = false; const WORKER_NEEDED = 4;
+const OUTDATED_MSG = 'Your Cloudflare Worker still has OLD code, so it does not know this feature yet. Fix (2 minutes): Cloudflare → Workers & Pages → your worker → Edit code → select all and delete → paste the whole worker/index.js from the newest zip → press Deploy. Then try again.';
+async function checkWorkerVersion() {
+  const url = normUrl(state.settings.workerUrl); if (!url) { workerOutdated = false; return renderHome(); }
+  try { const info = await (await fetch(url)).json(); workerOutdated = !!(info && info.app === 'Learnova AI Worker' && (info.version || 0) < WORKER_NEEDED); } catch { /* offline or blocked: say nothing here, the Settings test explains it */ }
+  renderHome();
+}
 const hasWorker = () => !!(state.settings.workerUrl || '').trim();
 
 /* ---------- Home ---------- */
@@ -75,6 +82,7 @@ function renderHome() {
   const qh = (state.settings.quizHistory || []).slice(-10);
   $('#statQuiz').textContent = qh.length ? Math.round(qh.reduce((a, q) => a + q.score / q.total, 0) / qh.length * 100) + '%' : '–';
   $('#setupBanner').classList.toggle('hidden', hasWorker());
+  $('#workerBanner').classList.toggle('hidden', !(hasWorker() && workerOutdated));
   const daysSince = state.settings.lastBackupAt ? (Date.now() - new Date(state.settings.lastBackupAt)) / 864e5 : Infinity;
   $('#backupBanner').classList.toggle('hidden', !((state.notes.length || state.materials.length) && daysSince > 14));
   const open = state.tasks.filter(t => !t.done).sort((a, b) => (Number(!!b.pinned) - Number(!!a.pinned)) || a.createdAt.localeCompare(b.createdAt));
@@ -463,6 +471,7 @@ async function callAI(task, payload) {
   catch (e) { throw new Error(e.name === 'AbortError' ? 'The AI took too long. Try fewer sources.' : `Cannot reach your Worker. Check the URL in Settings and your internet. If both are fine, the Worker's ALLOWED_ORIGINS variable must include this site (${location.origin}).`); }
   finally { clearTimeout(timer); }
   let data; try { data = await res.json(); } catch { throw new Error('The Worker returned an unexpected reply. Check the Worker URL.'); }
+  if (!res.ok && /unknown task/i.test(data.error || '')) { workerOutdated = true; renderHome(); throw new Error(OUTDATED_MSG); }
   if (!res.ok) throw new Error(data.error || `AI request failed (${res.status}).`);
   if (!data.text) throw new Error('AI returned no text.'); return data;
 }
@@ -624,7 +633,7 @@ async function checkQuiz() {
 }
 
 /* ---------- Settings, notifications, backup ---------- */
-$('#settingsBtn').addEventListener('click', () => { $('#workerUrl').value = state.settings.workerUrl || ''; $('#accessCode').value = state.settings.accessCode || ''; setStatus('#settingsStatus', ''); $('#settingsDialog').showModal(); });
+$('#settingsBtn').addEventListener('click', () => { setTimeout(showNotifState, 0); $('#workerUrl').value = state.settings.workerUrl || ''; $('#accessCode').value = state.settings.accessCode || ''; setStatus('#settingsStatus', ''); $('#settingsDialog').showModal(); });
 $('#saveSettingsBtn').addEventListener('click', async () => {
   const url = normUrl($('#workerUrl').value); state.settings.workerUrl = url; state.settings.accessCode = $('#accessCode').value.trim(); await saveSettings(); renderHome();
   if (!url) return setStatus('#settingsStatus', 'Saved. Add your Worker URL to enable AI.', true);
@@ -632,24 +641,38 @@ $('#saveSettingsBtn').addEventListener('click', async () => {
   try {
     let info; try { info = await (await fetch(url)).json(); } catch { throw new Error(`Cannot reach that URL. Check it and your internet. If both are fine, add this site (${location.origin}) to the Worker's ALLOWED_ORIGINS variable and deploy.`); }
     if (!info || info.app !== 'Learnova AI Worker') throw new Error('The Worker is running OLD code. Paste the new worker/index.js into Cloudflare → Edit code → Deploy, then test again.');
+    if ((info.version || 0) < WORKER_NEEDED) { workerOutdated = true; renderHome(); throw new Error(OUTDATED_MSG); }
+    workerOutdated = false; renderHome();
     if (info.accessRequired && !state.settings.accessCode) throw new Error('This Worker requires an access code. Enter it in the Access code box and test again.');
     if (!info.keyConfigured) throw new Error('Worker is live but the GEMINI_API_KEY secret is missing in Cloudflare.');
     const r = await callAI('ask', { question: 'What colour is the sky?', sourceText: 'Learnova test: the sky is blue.' });
     setStatus('#settingsStatus', `✅ Connected. Gemini (${info.model}) replied: ${r.text.slice(0, 80)}`);
   } catch (e) { setStatus('#settingsStatus', '❌ ' + e.message, true); }
 });
+function notifHelp(perm) {
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (!('Notification' in window)) return { ok: false, text: ios ? 'iPhone only allows notifications for apps added to the Home Screen (iOS 16.4+). Tap Share → Add to Home Screen, then open Learnova from that icon.' : 'This browser does not support notifications. Try Chrome, or use the calendar option below.' };
+  if (perm === 'granted') return { ok: true, text: '✅ Notifications are ALLOWED for this site. Tap “Send test notification”. If nothing appears: phone Settings → Apps → Chrome → Notifications → turn ON (also the “Site notifications” switch), and turn Do Not Disturb OFF.' };
+  if (perm === 'denied') return { ok: false, text: '⛔ Chrome is BLOCKING notifications for this site and will not ask again. Fix: tap the ⓘ / 🔒 icon at the left of the address bar → Permissions (or Site settings) → Notifications → Allow. Or: Chrome ⋮ → Settings → Site settings → Notifications → find this site under “Blocked” → Allow. Then return here and tap Send test notification.' };
+  return { ok: false, text: '🔔 Not allowed yet. Chrome did not show the popup (it may be collapsing the request). Look for a 🔔 icon at the right end of the address bar and tap it → Allow. Or: Chrome ⋮ → Settings → Site settings → Notifications → choose “Expand all requests”, reload this page, open Settings and tap Enable notifications again.' };
+}
+function showNotifState() { const h = notifHelp('Notification' in window ? Notification.permission : 'none'); setStatus('#notificationStatus', h.text, !h.ok); return h; }
 $('#enableNotificationsBtn').addEventListener('click', async () => {
-  if (!('Notification' in window)) return setStatus('#notificationStatus', 'This browser does not support notifications.', true);
-  const p = await Notification.requestPermission(); if (p !== 'granted') return setStatus('#notificationStatus', 'Permission not granted. Enable notifications in browser settings.', true);
-  localStorage.setItem('ln-notifications', 'yes'); setStatus('#notificationStatus', 'Enabled. Reminders at 10:00 AM and 8:00 PM while Learnova is open.'); checkReminders(); toast('Notifications enabled');
+  if ('Notification' in window && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch { /* handled by the state check below */ } }
+  const h = showNotifState(); if (h.ok) { localStorage.setItem('ln-notifications', 'yes'); checkReminders(); toast('Notifications enabled'); }
 });
 $('#testNotificationBtn').addEventListener('click', async () => {
-  if (!('Notification' in window)) return setStatus('#notificationStatus', 'This browser does not support notifications. On iPhone, open Learnova from its Home Screen icon (iOS 16.4+).', true);
-  if (Notification.permission === 'default') await Notification.requestPermission();
-  if (Notification.permission !== 'granted') return setStatus('#notificationStatus', 'Notifications are blocked. Allow them for Learnova in your phone or browser settings, then try again.', true);
+  if ('Notification' in window && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch { /* see state check */ } }
+  const h = showNotifState(); if (!h.ok) return;
   localStorage.setItem('ln-notifications', 'yes');
-  try { const reg = await navigator.serviceWorker.ready; await reg.showNotification('Learnova ✓', { body: 'Notifications work. Reminders come at 10:00 AM and 8:00 PM while Learnova is open.', icon: './icon.svg' }); setStatus('#notificationStatus', 'Test notification sent. If you did not see it, check your phone’s notification settings for Learnova.'); }
-  catch (e) { try { new Notification('Learnova ✓', { body: 'Notifications work.' }); setStatus('#notificationStatus', 'Test notification sent.'); } catch (e2) { setStatus('#notificationStatus', 'Could not show a notification: ' + e2.message, true); } }
+  try { const reg = await navigator.serviceWorker.ready; await reg.showNotification('Learnova ✓', { body: 'Notifications work. Reminders come at 10:00 AM and 8:00 PM while Learnova is open.', icon: './icon.svg' }); setStatus('#notificationStatus', '✅ Test notification sent. Pull down your notification bar to see it.'); }
+  catch (e) { try { new Notification('Learnova ✓', { body: 'Notifications work.' }); setStatus('#notificationStatus', '✅ Test notification sent.'); } catch (e2) { setStatus('#notificationStatus', 'Allowed, but this browser could not show it: ' + e2.message + '. Use the calendar option below instead.', true); } }
+});
+$('#icsBtn').addEventListener('click', () => {
+  const z = n => String(n).padStart(2, '0'), d = new Date(), ymd = `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}`, stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const ev = (id, hh, title, desc) => ['BEGIN:VEVENT', `UID:${id}@learnova`, `DTSTAMP:${stamp}`, `DTSTART:${ymd}T${hh}0000`, `DTEND:${ymd}T${hh}1500`, 'RRULE:FREQ=DAILY', `SUMMARY:${title}`, `DESCRIPTION:${desc}`, 'BEGIN:VALARM', 'TRIGGER:PT0M', 'ACTION:DISPLAY', `DESCRIPTION:${title}`, 'END:VALARM', 'END:VEVENT'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Learnova//Reminders//EN', 'CALSCALE:GREGORIAN', ...ev('morning', '10', 'Learnova: study time', 'Review your tasks and flashcards.'), ...ev('night', '20', 'Learnova: evening revision', 'Revise your notes and try a quick quiz.'), 'END:VCALENDAR'];
+  downloadBlob(new Blob([lines.join('\r\n')], { type: 'text/calendar' }), 'learnova-reminders.ics'); setStatus('#notificationStatus', 'Reminder file downloaded. Open it (from your downloads or the notification) and tap Add in your Calendar app. They repeat every day, even when Learnova is closed.');
 });
 function checkReminders() {
   if (!('Notification' in window) || localStorage.getItem('ln-notifications') !== 'yes' || Notification.permission !== 'granted') return;
@@ -687,7 +710,7 @@ $('#importInput').addEventListener('change', async e => {
 /* ---------- Learnova AI: the single main tutor (chat, fresh practice questions, photo marking, verdict) ---------- */
 const getChat = () => state.chats.find(c => c.id === 'main') || { id: 'main', messages: [], sets: [], results: [] };
 async function saveChat(c) { await put('chats', c); state.chats = await getAll('chats'); }
-let aiImages = [], aiBusy = false;
+let aiImages = [], aiBusy = false, aiError = '';
 const openSetOf = c => [...c.sets].reverse().find(x => !x.answered);
 const PRACTICE_RE = /(\b(give|make|create|generate|set|prepare|need|want|write)\b[^.?!]*\b(questions?|problems?|mcqs?|sums?|quiz|test|exercises?)\b)|\bpractice\b/i;
 const VERDICT_RE = /\b(verdict|how am i doing|my progress|how is my study)\b/i;
@@ -713,6 +736,7 @@ const INTRO = '<div class="msg ai"><div class="note-render"><p><b>Hi! I am your 
 function renderChat() {
   const c = getChat();
   $('#aiLog').innerHTML = c.messages.length ? c.messages.map(m => `<div class="msg ${m.role}">${m.role === 'ai' ? `<div class="note-render">${renderMarkdown(m.text)}</div>` : `<p style="white-space:pre-wrap">${escapeHTML(m.text)}</p>`}${m.setId ? `<div class="msg-actions"><button class="smallbtn" data-reveal="${m.setId}">Show answers</button></div>` : ''}</div>`).join('') : INTRO;
+  if (aiError) $('#aiLog').insertAdjacentHTML('beforeend', `<div class="msg ai"><div class="note-render"><div class="callout warning"><div class="ctitle"><span>⚠️</span><span>I could not do that</span></div><p>${escapeHTML(aiError)}</p></div></div></div>`);
   $('#aiLog').scrollTop = $('#aiLog').scrollHeight; updateAttach();
 }
 function updateAttach() {
@@ -742,13 +766,13 @@ document.addEventListener('click', e => {
   if (rv) { const c = getChat(), set = c.sets.find(x => x.id === rv.dataset.reveal); if (!set) return toast('That set was cleared.'); c.messages.push({ id: uid(), role: 'ai', text: `## ✅ Answers — ${set.topic}\n` + set.questions.map((q, i) => `**Q${i + 1}.** ${q.answer}\n\n> [!example] Working\n${q.solution.split('\n').map(l => '> ' + l).join('\n')}`).join('\n\n'), ts: now() }); saveChat(c).then(renderChat); }
 });
 $('#aiForm').addEventListener('submit', async e => {
-  e.preventDefault(); if (aiBusy) return; const text = $('#aiInput').value.trim(); if (!text && !aiImages.length) return;
+  e.preventDefault(); if (aiBusy) return; aiError = ''; const text = $('#aiInput').value.trim(); if (!text && !aiImages.length) return;
   aiBusy = true; $('#aiSend').disabled = true; const c = getChat(), imgs = aiImages.slice(), check = imgs.length && $('#aiPhotoMode').value === 'check' && !!openSetOf(c);
   c.messages.push({ id: uid(), role: 'user', text: (text || '(photo)') + (imgs.length ? `\n📷 ${imgs.length} photo${imgs.length > 1 ? 's' : ''}` : ''), ts: now() });
   $('#aiInput').value = ''; $('#aiInput').style.height = 'auto'; aiImages = []; await saveChat(c); renderChat();
   try {
     if (check) await doCheck(c, imgs, text); else if (imgs.length) await doChat(c, text, imgs); else if (PRACTICE_RE.test(text)) await doPractice(c, text); else if (VERDICT_RE.test(text)) await doVerdict(c); else await doChat(c, text, []);
-  } catch (err) { c.messages.push({ id: uid(), role: 'ai', text: `> [!warning] Something went wrong\n> ${String(err.message).replace(/\n/g, ' ')}`, ts: now() }); }
+  } catch (err) { aiError = String(err.message || err); }
   imgs.forEach(i => URL.revokeObjectURL(i.url)); await saveChat(c); aiBusy = false; $('#aiSend').disabled = false; setStatus('#chatStatus', ''); renderChat();
 });
 async function doChat(c, text, imgs) {
@@ -801,6 +825,8 @@ async function doVerdict(c) {
 /* ---------- Boot ---------- */
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => {});
 (async () => {
-  try { db = await openDB(); await refresh(); if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); checkReminders(); window.__learnovaReady = true; }
+  try { db = await openDB(); await refresh(); if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); checkReminders(); window.__learnovaReady = true; checkWorkerVersion(); }
   catch (e) { toast('Local storage could not start: ' + e.message); }
 })();
+
+$('#workerBannerBtn').addEventListener('click', () => { $('#settingsBtn').click(); });
