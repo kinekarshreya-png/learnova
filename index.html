@@ -38,6 +38,8 @@
 
   <section id="backupBanner" class="banner hidden"><strong>💾 Back up your study data</strong><p>Your notes live only in this browser. Export a backup so nothing is lost if browser data is cleared.</p><button class="primary" id="backupNowBtn">Export backup now</button></section>
 
+  <section id="workerBanner" class="banner hidden"><strong>⚠️ Update your Cloudflare Worker</strong><p>The Worker still runs old code, so the AI cannot answer yet. Cloudflare → Workers &amp; Pages → your worker → <b>Edit code</b> → select all, delete → paste the whole <b>worker/index.js</b> from the newest zip → press <b>Deploy</b>.</p><button class="primary" id="workerBannerBtn">Test connection again</button></section>
+
   <section id="setupBanner" class="banner hidden">
     <strong>One last step to switch on AI</strong>
     <p>Open ⚙ Settings, paste your Cloudflare Worker URL and tap <em>Save &amp; test connection</em>.</p>
@@ -120,7 +122,7 @@
   <form id="aiForm" class="ai-input">
     <label class="iconcard" title="Take a photo">📷<input id="aiCam" type="file" accept="image/*" capture="environment" hidden></label>
     <label class="iconcard" title="Choose photos">🖼<input id="aiGal" type="file" accept="image/*" multiple hidden></label>
-    <textarea id="aiInput" rows="1" placeholder="Ask a doubt or request questions…"></textarea>
+    <textarea id="aiInput" rows="1" placeholder="Ask anything…"></textarea>
     <button class="primary" id="aiSend">Send</button>
   </form>
   <div id="chatStatus" class="status" aria-live="polite"></div>
@@ -159,7 +161,9 @@
   <h3>Daily study notifications</h3>
   <p class="hint">Reminders at 10:00 AM and 8:00 PM are shown while Learnova is open (a static website cannot wake itself when fully closed).</p>
   <ol class="hint steps"><li>Open Learnova from your <b>home-screen icon</b> (iPhone: Share → Add to Home Screen first; needs iOS 16.4+).</li><li>Tap <b>Enable notifications</b> and press <b>Allow</b>.</li><li>Tap <b>Send test notification</b> to confirm.</li><li>If it says blocked: browser/phone Settings → Learnova (or this site) → Notifications → Allow.</li></ol>
-  <div class="action-row"><button id="enableNotificationsBtn" class="secondary">Enable notifications</button><button id="testNotificationBtn" class="secondary">Send test notification</button></div><div id="notificationStatus" class="status"></div>
+  <div class="action-row"><button id="enableNotificationsBtn" class="secondary">Enable notifications</button><button id="testNotificationBtn" class="secondary">Send test notification</button></div>
+  <button id="icsBtn" class="secondary full">📅 Add daily reminders to my phone calendar</button>
+  <p class="hint">The calendar option works even when Learnova is closed: open the downloaded file and tap Add in your Calendar app (10:00 AM and 8:00 PM every day).</p><div id="notificationStatus" class="status"></div>
   <hr>
   <h3>Backup</h3><div class="action-row"><button id="exportBtn" class="secondary">Export backup</button><label class="filebtn">Import backup<input id="importInput" type="file" accept=".json,application/json"></label></div>
   <p class="hint warning">Browser storage can be cleared if you wipe site data. Export a backup regularly. Backups include text, notes, cards and quiz history, but not the original photo/PDF files.</p>
