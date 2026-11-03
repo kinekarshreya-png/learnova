@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="description" content="Learnova — your AI study companion. Scan, understand and revise.">
+  <title>Learnova</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brandrow">
+    <img src="./icon.svg" alt="" class="logo" width="40" height="40">
+    <div><div class="brand">Learnova</div><div class="subbrand">Scan. Understand. Remember.</div></div>
+  </div>
+  <button id="syncChip" class="syncchip" aria-label="Sync status">☁ Sync off</button>
+</header>
+
+<main class="wrap">
+<section id="pageHome" class="page">
+  <section class="hero">
+    <div>
+      <div id="greeting" class="greeting">Hello</div>
+      <div class="hero-sub">Ready to learn something new today?</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="statStreak">0</b><span>day streak 🔥</span></div>
+      <div class="stat"><b id="statNotes">0</b><span>notes</span></div>
+      <div class="stat"><b id="statDue">0</b><span>cards due</span></div>
+      <div class="stat"><b id="statQuiz">–</b><span>quiz avg</span></div>
+    </div>
+  </section>
+
+  <button id="openAiBtn" class="ai-card"><span class="ai-ic">🤖</span><span class="ai-tx"><b>Learnova AI</b><small>Doubts · fresh practice questions · photo marking</small></span><span class="chev">›</span></button>
+
+  <section id="backupBanner" class="banner hidden"><strong>💾 Back up your study data</strong><p>Your notes live only in this browser. Export a backup so nothing is lost if browser data is cleared.</p><button class="primary" id="backupNowBtn">Export backup now</button></section>
+
+  <section id="workerBanner" class="banner hidden"><strong>⚠️ Update your Cloudflare Worker</strong><p>The Worker still runs old code, so the AI cannot answer yet. Cloudflare → Workers &amp; Pages → your worker → <b>Edit code</b> → select all, delete → paste the whole <b>worker/index.js</b> from the newest zip → press <b>Deploy</b>.</p><button class="primary" id="workerBannerBtn">Test connection again</button></section>
+
+  <section id="setupBanner" class="banner hidden">
+    <strong>One last step to switch on AI</strong>
+    <p>Open ⚙ Settings, paste your Cloudflare Worker URL and tap <em>Save &amp; test connection</em>.</p>
+    <button class="primary" id="bannerSettings">Open settings</button>
+  </section>
+
+  <section class="panel quick">
+    <div class="section-head"><div><h2>📝 Quick Note Box</h2><p>Keep small tasks in sight.</p></div><span class="pill">HOME</span></div>
+    <form id="taskForm" class="inlineform"><input id="taskInput" maxlength="180" placeholder="e.g. 25th Science test" required><button class="primary" type="submit">Add</button></form>
+    <div id="taskList" class="tasklist"></div>
+  </section>
+
+</section>
+
+<section id="pageSubjects" class="page hidden">
+  <section class="section-head subject-heading"><div><h2>📚 My Subjects</h2><p>Tap a subject to add material, make notes, cards and quizzes.</p></div></section>
+  <form id="subjectForm" class="inlineform"><input id="subjectInput" maxlength="80" placeholder="e.g. Science" required><button class="primary" type="submit">+ Subject</button></form>
+  <div id="subjectList" class="subject-grid"></div>
+
+</section>
+</main>
+
+<nav class="appnav" aria-label="Main">
+  <button data-nav="home" class="active"><span>🏠</span>Home</button>
+  <button data-nav="subjects"><span>📚</span>Subjects</button>
+  <button id="navAi"><span>🤖</span>AI</button>
+  <button id="settingsBtn"><span>⚙</span>Settings</button>
+</nav>
+
+<dialog id="subjectDialog" class="modal wide">
+  <div class="modal-head"><div><h2 id="subjectTitle">Subject</h2><p id="subjectMeta"></p></div><button class="iconbtn close" data-close="subjectDialog" aria-label="Close">✕</button></div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="materials"><span>📂</span>Materials</button>
+    <button class="tab" data-tab="notes"><span>🗒</span>Notes</button>
+    <button class="tab" data-tab="cards"><span>🃏</span>Cards</button>
+    <button class="tab" data-tab="practice"><span>🎯</span>Quiz</button>
+  </nav>
+
+  <section id="materialsTab" class="tabbody">
+    <button id="addBtn" class="primary full big">＋ Add to this subject</button>
+    <div class="create-box">
+      <h3>✨ Create notes</h3>
+      <details id="srcPicker" class="picker"><summary id="srcSummary">All materials</summary><div id="srcList" class="picker-list"></div></details>
+      <button id="createNotesBtn" class="primary full big">Create Notes</button>
+      <div id="aiStatus" class="status" aria-live="polite"></div>
+    </div>
+    <details id="matGroup" class="matgroup"><summary id="matSummary">📂 Pages &amp; files</summary>
+      <input id="matSearch" type="search" placeholder="🔎 Search pages…" class="searchbox">
+      <div id="materialList" class="material-list"></div>
+    </details>
+  </section>
+
+  <section id="notesTab" class="tabbody hidden"><input id="noteSearch" type="search" placeholder="🔎 Search notes…" class="searchbox"><div id="notesList" class="notes-list"></div></section>
+
+  <section id="cardsTab" class="tabbody hidden">
+    <div class="create-box">
+      <h3>🃏 Flashcards</h3>
+      <p>Cards are made only from your saved readable material and scheduled with spaced repetition.</p>
+      <div class="action-row"><button id="makeCardsBtn" class="primary">Generate 12 cards</button><button id="reviewCardsBtn" class="secondary">Review due cards</button></div>
+      <div id="cardStatus" class="status"></div>
+    </div>
+    <div id="cardArea"></div>
+  </section>
+
+  <section id="practiceTab" class="tabbody hidden">
+    <div class="create-box"><h3>🎯 Quick MCQ challenge</h3><p>Questions come only from saved readable material in this subject.</p>
+      <div class="action-row"><button id="createQuizBtn" class="primary">Generate 5 MCQs</button><button id="retryMistakesBtn" class="secondary">Retry my mistakes</button></div>
+      <div id="quizStatus" class="status"></div></div>
+    <div id="quizArea"></div>
+    <div class="mistakes-box"><h3>📕 Mistakes Notebook</h3><div id="mistakesList"></div></div>
+  </section>
+
+</dialog>
+
+<dialog id="addSheet" class="modal sheet">
+  <div class="modal-head"><div><h2>Add to <span id="addSheetSubject">subject</span></h2><p>Choose how you want to add material.</p></div><button class="iconbtn close" data-close="addSheet" aria-label="Close">✕</button></div>
+  <div class="opt-grid">
+    <button id="cameraBtn" class="opt" type="button"><span>📷</span><b>Camera</b><small>Take a new photo</small></button>
+    <label class="opt"><span>🖼</span><b>Gallery / Photos</b><small>Pick an existing image</small><input id="galleryInput" type="file" accept="image/*" multiple hidden></label>
+    <button id="linkBtn" class="opt" type="button"><span>🔗</span><b>Links</b><small>Save a web address</small></button>
+    <button id="pasteBtn" class="opt" type="button"><span>✎</span><b>Text</b><small>Type or paste text</small></button>
+    <label class="opt wide"><span>📁</span><b>Select Files</b><small>PDF, Word, text or image files from your device or Google Files</small><input id="fileInput" type="file" multiple hidden accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.txt,.md,.csv,text/plain,text/csv,.png,.jpg,.jpeg,.webp"></label>
+  </div>
+  <div id="cameraFallback" class="hidden"><p class="hint warning">The in-app camera is not available here. Use your phone’s camera app instead:</p><label class="opt wide"><span>📷</span><b>Open phone camera app</b><input id="cameraInput" type="file" accept="image/*" capture="environment" hidden></label></div>
+</dialog>
+
+<dialog id="linkDialog" class="modal sheet">
+  <div class="modal-head"><div><h2>🔗 Add a link</h2><p>The link is saved as it is. Learnova reads the page only when you create notes from it.</p></div><button class="iconbtn close" data-close="linkDialog" aria-label="Close">✕</button></div>
+  <label class="field-label" for="linkUrl">Web address</label><input id="linkUrl" type="url" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="https://example.com/article">
+  <label class="field-label" for="linkName">Name (optional)</label><input id="linkName" maxlength="80" placeholder="e.g. Mean and median guide">
+  <div id="linkStatus" class="status"></div>
+  <button id="saveLinkBtn" class="primary full big">Save link</button>
+</dialog>
+
+<dialog id="aiDialog" class="modal wide aisheet">
+  <div class="modal-head"><div><h2>🤖 Learnova AI</h2><p>One tutor for every subject.</p></div><button class="iconbtn close" data-close="aiDialog" aria-label="Close">✕</button></div>
+  <div class="ai-scope"><label for="aiScope">Material</label><select id="aiScope"></select><button id="aiClear" class="smallbtn">Clear chat</button></div>
+  <div id="aiLog" class="ai-log"></div>
+  <div class="chips"><button class="chip" data-chip="practice">📝 3 practice questions</button><button class="chip" data-chip="explain">💡 Explain a topic</button><button class="chip" data-chip="verdict">📊 My study verdict</button></div>
+  <div id="aiAttach" class="attach hidden"><div id="aiThumbs" class="thumbs"></div><select id="aiPhotoMode"><option value="check">✅ Check my answer</option><option value="doubt">💬 Explain this photo</option></select><button id="aiAttachClear" class="smallbtn">Remove</button></div>
+  <form id="aiForm" class="ai-input">
+    <label class="iconcard" title="Take a photo">📷<input id="aiCam" type="file" accept="image/*" capture="environment" hidden></label>
+    <label class="iconcard" title="Choose photos">🖼<input id="aiGal" type="file" accept="image/*" multiple hidden></label>
+    <textarea id="aiInput" rows="1" placeholder="Ask anything…"></textarea>
+    <button class="primary" id="aiSend">Send</button>
+  </form>
+  <div id="chatStatus" class="status" aria-live="polite"></div>
+</dialog>
+
+<dialog id="noteDialog" class="modal wide">
+  <div class="modal-head"><div><h2 id="noteDialogTitle">Note</h2><p>The AI original is never changed. Edits are saved as your own copy.</p></div><button class="iconbtn close" data-close="noteDialog" aria-label="Close">✕</button></div>
+  <div class="action-row">
+    <button id="noteViewBtn" class="secondary">👁 View</button>
+    <button id="noteEditBtn" class="secondary">✏ Edit copy</button>
+    <button id="noteCopyBtn" class="secondary">📋 Copy</button>
+    <button id="notePrintBtn" class="secondary">🖨 PDF / Print</button>
+  </div>
+  <article id="noteRendered" class="note-render"></article>
+  <div id="noteEditWrap" class="hidden">
+    <textarea id="noteEditor" class="note-editor" rows="16"></textarea>
+    <div class="action-row end"><button id="saveCopyBtn" class="primary">Save editable copy</button></div>
+  </div>
+</dialog>
+
+<dialog id="textDialog" class="modal wide">
+  <div class="modal-head"><div><h2 id="textDialogTitle">Review text</h2><p>Fix any wrong words here. Notes, cards and quizzes use exactly this text.</p></div><button class="iconbtn close" data-close="textDialog" aria-label="Close">✕</button></div>
+  <textarea id="textEditor" class="note-editor" rows="16"></textarea>
+  <div class="action-row end"><button id="rereadBtn" class="secondary hidden">🔁 Re-read with AI</button><button id="saveTextBtn" class="primary">Save text</button></div>
+</dialog>
+
+<dialog id="settingsDialog" class="modal">
+  <div class="modal-head"><div><h2>Settings</h2><p>Connection, sync and backup.</p></div><button class="iconbtn close" data-close="settingsDialog" aria-label="Close">✕</button></div>
+  <details class="sect" id="sectConn" open><summary>🔌 Connection</summary>
+    <label class="field-label" for="workerUrl">AI Worker URL</label><input id="workerUrl" placeholder="https://learnova-ai.yourname.workers.dev">
+    <p class="hint">Your Cloudflare Worker. The Gemini key stays inside the Worker, never in this app.</p>
+    <label class="field-label" for="accessCode">Access code (your private password)</label><input id="accessCode" type="password" autocomplete="off" placeholder="Same value as the Worker secret APP_ACCESS_CODE">
+    <p class="hint">Keeps strangers out of your AI and your synced data. Stored only in this browser and never included in backups.</p>
+    <button id="saveSettingsBtn" class="primary full">Save &amp; test connection</button>
+    <div id="settingsStatus" class="status"></div>
+  </details>
+  <details class="sect" id="sectSync"><summary>☁ Sync laptop ⇄ phone</summary>
+    <p class="hint"><b>Sign in on each device with the same Worker URL and access code</b> and your subjects, pages, notes, cards, quizzes and chat stay identical everywhere. Everything is encrypted in your browser before it is stored in your own Cloudflare account. Original photo/PDF files are not synced, only the text read from them.</p>
+    <label class="checkline"><input type="checkbox" id="syncOn" checked> Keep this device in sync</label>
+    <div class="action-row"><button id="syncNowBtn" class="secondary">Sync now</button><button id="syncResetBtn" class="secondary">Reset cloud copy</button></div>
+    <div id="syncStatus" class="status"></div>
+  </details>
+  <details class="sect" id="sectBackup"><summary>💾 Backup &amp; privacy</summary>
+    <div class="action-row"><button id="exportBtn" class="secondary">Export backup</button><label class="filebtn">Import backup<input id="importInput" type="file" accept=".json,application/json"></label></div>
+    <p class="hint warning">Browser storage can be cleared if you wipe site data. Export a backup regularly. Backups include text, notes, cards, chat and quiz history, but not the original photo/PDF files or your access code.</p>
+    <p class="hint"><b>🔒 Private by design.</b> Your data lives in this browser and, if sync is on, as encrypted data in your own Cloudflare storage. Only the text or images you choose to process are sent to Gemini through your own Worker. Nothing is public.</p>
+  </details>
+</dialog>
+
+<dialog id="cameraDialog" class="modal wide">
+  <div class="modal-head"><div><h2>Scan a page</h2><p>Hold steady, fill the frame, good light. Pages are saved inside Learnova, not your gallery.</p></div><button class="iconbtn close" data-close="cameraDialog" aria-label="Close">✕</button></div>
+  <div class="camwrap"><video id="cameraVideo" autoplay playsinline muted></video><div id="shutter" class="shutter"></div><div id="capBadge" class="capbadge">✓ Photo clicked</div></div><canvas id="cameraCanvas" class="hidden"></canvas>
+  <div class="capinfo"><b id="capCount">0 pages captured</b></div><div id="capStrip" class="capstrip"></div>
+  <div class="action-row"><button id="captureBtn" class="primary">Capture page</button><button id="stopCameraBtn" class="secondary">Close camera</button></div><div id="cameraStatus" class="status"></div>
+</dialog>
+
+<div id="toast" class="toast" role="status"></div>
+<footer>Learnova · local-first · AI needs internet</footer>
+<script src="./app.js"></script>
+</body>
+</html>
